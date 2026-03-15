@@ -468,8 +468,8 @@ footer{margin-top:auto;padding:16px 26px;border-top:1px solid var(--border);disp
 <script>
 // ── CONFIG ─────────────────────────────────────────────────────
 // Sostituisci con le tue credenziali Supabase (Project Settings → API)
-const SUPABASE_URL  = 'INSERISCI_QUI_IL_TUO_SUPABASE_URL';
-const SUPABASE_ANON = 'INSERISCI_QUI_IL_TUO_SUPABASE_ANON_KEY';
+const SUPABASE_URL  = 'https://hhcxfhlukpvttvgonrgp.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhoY3hmaGx1a3B2dHR2Z29ucmdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NzE0ODgsImV4cCI6MjA4OTE0NzQ4OH0.4B5zWuwl6ho0nqy7aHrCTNoKLySpRhwteNq6Qyz89oU';
 // ───────────────────────────────────────────────────────────────
 
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
@@ -893,31 +893,59 @@ function showApp(loggedIn){
 }
 
 // ── INIT ───────────────────────────────────────────────────────
+function showAuthScreen(){
+  document.getElementById('loading-screen').style.display='none';
+  document.getElementById('auth-screen').style.display='flex';
+  document.getElementById('app-screen').style.display='none';
+}
+
 (async()=>{
   applyTheme(localStorage.getItem(SK_THEME)||'light');
 
-  db.auth.onAuthStateChange(async(event,session)=>{
-    if(event==='PASSWORD_RECOVERY'){
-      document.getElementById('loading-screen').style.display='none';
-      document.getElementById('app-screen').style.display='none';
-      document.getElementById('auth-screen').style.display='flex';
-      showForm('newpass');
-      return;
-    }
-    if(session?.user){
-      currentUser=session.user;
-      showApp(true);
-      await fetchTasks();
-    }else{
-      currentUser=null;
-      showApp(false);
-    }
-  });
+  // Controllo chiavi non configurate
+  if(SUPABASE_URL.includes('INSERISCI') || SUPABASE_ANON.includes('INSERISCI')){
+    document.getElementById('loading-screen').innerHTML=`
+      <div class="loading-inner">
+        <div class="loading-logo"><svg viewBox="0 0 20 20" fill="none"><path d="M10 2L17 6V14L10 18L3 14V6L10 2Z" stroke="white" stroke-width="1.5" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.5" fill="white"/></svg></div>
+        <div class="loading-title" style="color:var(--pa)">Configurazione mancante</div>
+        <div class="loading-sub" style="max-width:280px;margin:8px auto 0">Inserisci le chiavi Supabase nell'index.html<br>(<code style="font-size:11px">SUPABASE_URL</code> e <code style="font-size:11px">SUPABASE_ANON</code>)</div>
+      </div>`;
+    return;
+  }
 
-  const{data:{session}}=await db.auth.getSession();
-  if(!session){
-    document.getElementById('loading-screen').style.display='none';
-    document.getElementById('auth-screen').style.display='flex';
+  // Timeout di sicurezza: se dopo 8s non è successo nulla, mostra il login
+  const safetyTimer = setTimeout(()=>showAuthScreen(), 8000);
+
+  try{
+    db.auth.onAuthStateChange(async(event,session)=>{
+      clearTimeout(safetyTimer);
+      if(event==='PASSWORD_RECOVERY'){
+        document.getElementById('loading-screen').style.display='none';
+        document.getElementById('app-screen').style.display='none';
+        document.getElementById('auth-screen').style.display='flex';
+        showForm('newpass');
+        return;
+      }
+      if(session?.user){
+        currentUser=session.user;
+        showApp(true);
+        await fetchTasks();
+      }else{
+        currentUser=null;
+        showApp(false);
+      }
+    });
+
+    const{data:{session},error}=await db.auth.getSession();
+    clearTimeout(safetyTimer);
+    if(error) throw error;
+    if(!session) showAuthScreen();
+  }catch(e){
+    console.error('Supabase init error:',e);
+    clearTimeout(safetyTimer);
+    showAuthScreen();
+    const el=document.getElementById('login-error');
+    if(el){el.textContent='Errore di connessione al database. Controlla le chiavi Supabase.';el.style.display='block';}
   }
 })();
 </script>
