@@ -317,6 +317,16 @@ footer{margin-top:auto;padding:16px 26px;border-top:1px solid var(--border);disp
       <hr class="auth-divider">
       <div class="auth-switch"><button class="auth-link" onclick="showForm('login')">← Torna al login</button></div>
     </div>
+
+    <!-- Nuova password (dopo click link email) -->
+    <div id="form-newpass" style="display:none">
+      <div class="auth-heading">Scegli nuova password</div>
+      <div class="auth-sub">Inserisci la tua nuova password</div>
+      <div class="auth-error" id="newpass-error"></div>
+      <div class="auth-field"><label>Nuova password</label><input type="password" id="newpass-1" placeholder="Minimo 6 caratteri"></div>
+      <div class="auth-field"><label>Ripeti password</label><input type="password" id="newpass-2" placeholder="Ripeti la password" onkeydown="if(event.key==='Enter')doNewPass()"></div>
+      <button class="btn-auth" id="btn-newpass" onclick="doNewPass()">Salva nuova password</button>
+    </div>
   </div>
 </div>
 
@@ -458,8 +468,8 @@ footer{margin-top:auto;padding:16px 26px;border-top:1px solid var(--border);disp
 <script>
 // ── CONFIG ─────────────────────────────────────────────────────
 // Sostituisci con le tue credenziali Supabase (Project Settings → API)
-const SUPABASE_URL  = 'https://hhcxfhlukpvttvgonrgp.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhoY3hmaGx1a3B2dHR2Z29ucmdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NzE0ODgsImV4cCI6MjA4OTE0NzQ4OH0.4B5zWuwl6ho0nqy7aHrCTNoKLySpRhwteNq6Qyz89oU';
+const SUPABASE_URL  = 'INSERISCI_QUI_IL_TUO_SUPABASE_URL';
+const SUPABASE_ANON = 'INSERISCI_QUI_IL_TUO_SUPABASE_ANON_KEY';
 // ───────────────────────────────────────────────────────────────
 
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
@@ -499,7 +509,7 @@ function toggleTheme(){
 
 // ── AUTH ───────────────────────────────────────────────────────
 function showForm(f){
-  ['login','signup','reset'].forEach(x=>{document.getElementById('form-'+x).style.display=x===f?'block':'none';});
+  ['login','signup','reset','newpass'].forEach(x=>{document.getElementById('form-'+x).style.display=x===f?'block':'none';});
   ['login-error','signup-error','reset-error','reset-success'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.style.display='none';
   });
@@ -541,6 +551,25 @@ async function doReset(){
     const s=document.getElementById('reset-success');
     s.textContent='Link inviato! Controlla la tua email.';s.style.display='block';
   }
+}
+async function doNewPass(){
+  const p1=document.getElementById('newpass-1').value;
+  const p2=document.getElementById('newpass-2').value;
+  if(!p1||p1.length<6){setAuthError('newpass-error','La password deve avere almeno 6 caratteri.');return;}
+  if(p1!==p2){setAuthError('newpass-error','Le due password non coincidono.');return;}
+  const btn=document.getElementById('btn-newpass');
+  btn.disabled=true;btn.textContent='Salvataggio…';
+  const{error}=await db.auth.updateUser({password:p1});
+  btn.disabled=false;btn.textContent='Salva nuova password';
+  if(error){setAuthError('newpass-error',error.message);return;}
+  await db.auth.signOut();
+  showForm('login');
+  const s=document.getElementById('login-error');
+  // show success in login form area
+  const ok=document.createElement('div');
+  ok.className='auth-success';ok.style.display='block';ok.textContent='Password aggiornata! Accedi con la nuova password.';
+  s.parentNode.insertBefore(ok,s);
+  setTimeout(()=>ok.remove(),5000);
 }
 async function doLogout(){
   await db.auth.signOut();
@@ -868,6 +897,13 @@ function showApp(loggedIn){
   applyTheme(localStorage.getItem(SK_THEME)||'light');
 
   db.auth.onAuthStateChange(async(event,session)=>{
+    if(event==='PASSWORD_RECOVERY'){
+      document.getElementById('loading-screen').style.display='none';
+      document.getElementById('app-screen').style.display='none';
+      document.getElementById('auth-screen').style.display='flex';
+      showForm('newpass');
+      return;
+    }
     if(session?.user){
       currentUser=session.user;
       showApp(true);
